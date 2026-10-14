@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use cadcraft_doc::{Constraint, Drawing, Handle};
+use cadz_doc::{Constraint, Drawing, Handle};
 use serde::Serialize;
 
 use crate::model::Model;

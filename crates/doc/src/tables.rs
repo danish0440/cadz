@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use cadcraft_color::Color;
-use cadcraft_geom::{Vec2, Vec3};
+use cadz_color::Color;
+use cadz_geom::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
 use crate::{EntityStore, Lineweight};
@@ -128,7 +128,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         TextStyle {
             name: "Standard".into(),
-            font: "CADCraft Stroke".into(),
+            font: "CadZ Stroke".into(),
             big_font: String::new(),
             height: 0.0,
             width_factor: 1.0,

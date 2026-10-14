@@ -10,9 +10,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 
-use cadcraft_fonts::subset::{self, FontInfo};
-use cadcraft_fonts::ttf::Face;
-use cadcraft_render::{DisplayList, PlotText};
+use cadz_fonts::subset::{self, FontInfo};
+use cadz_fonts::ttf::Face;
+use cadz_render::{DisplayList, PlotText};
 
 use super::{Objects, num, refs, stream};
 

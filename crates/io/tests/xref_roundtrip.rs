@@ -5,11 +5,11 @@
 
 use std::sync::Arc;
 
-use cadcraft_color::Color;
-use cadcraft_doc::*;
-use cadcraft_dxf::{Tag, parse_ascii, records, sections, write_ascii};
-use cadcraft_geom::Vec3;
-use cadcraft_io::{read_dxf, write_dxf};
+use cadz_color::Color;
+use cadz_doc::*;
+use cadz_dxf::{Tag, parse_ascii, records, sections, write_ascii};
+use cadz_geom::Vec3;
+use cadz_io::{read_dxf, write_dxf};
 
 fn roundtrip(d: &Drawing) -> Drawing {
     read_dxf(write_dxf(d).as_bytes()).expect("reopen")

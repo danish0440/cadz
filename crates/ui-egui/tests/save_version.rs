@@ -1,14 +1,14 @@
 //! The default save version (#421): File > Default Save Format > Version …, kept in the
 //! preferences, applied by the Save dialog to drawings that have no file yet.
 
-use cadcraft_engine::Session;
-use cadcraft_engine::cmd::file::{IoHooks, SaveAs, set_io, set_write_as};
-use cadcraft_engine::doc::Drawing;
-use cadcraft_ui_egui::{CadApp, Services};
+use cadz_engine::Session;
+use cadz_engine::cmd::file::{IoHooks, SaveAs, set_io, set_write_as};
+use cadz_engine::doc::Drawing;
+use cadz_ui_egui::{CadApp, Services};
 use serde_json::{Value, json};
 
 fn picked() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("cadcraft-ui-save-version-{}.dxf", std::process::id()))
+    std::env::temp_dir().join(format!("cadz-ui-save-version-{}.dxf", std::process::id()))
 }
 
 fn with_options(_: &Drawing, _: &str, o: &SaveAs) -> Result<Vec<u8>, String> {

@@ -1,0 +1,17 @@
+[package]
+name = "cadz-cli"
+description = "CadZ command-line tool: info, convert, run scripts, export, commands, MCP server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+cadz-engine = { workspace = true }
+cadz-io = { workspace = true }
+cadz-mcp = { workspace = true }
+cadz-render = { workspace = true }
+serde_json = { workspace = true }

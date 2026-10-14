@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use cadcraft_doc::{Attrib, Drawing, Entity, EntityKind, EntityStore, MAX_BLOCK_DEPTH, XrefStatus};
+use cadz_doc::{Attrib, Drawing, Entity, EntityKind, EntityStore, MAX_BLOCK_DEPTH, XrefStatus};
 
 /// Most objects the xrefs of one drawing load in one go (nested xrefs included).
 pub(crate) const MAX_XREF_OBJECTS: usize = 4_000_000;
@@ -290,14 +290,14 @@ fn import(d: &mut Drawing, key: &str, x: &Drawing, cx: &mut Ctx) -> Result<(), S
         if let Some(n) = dep(Sym::Linetype, &t.name)
             && d.linetype(&n).is_none()
         {
-            d.linetypes.push(cadcraft_doc::Linetype { name: n, ..t.clone() });
+            d.linetypes.push(cadz_doc::Linetype { name: n, ..t.clone() });
         }
     }
     for t in &x.text_styles {
         if let Some(n) = dep(Sym::Style, &t.name)
             && d.text_style(&n).is_none()
         {
-            d.text_styles.push(cadcraft_doc::TextStyle { name: n, ..t.clone() });
+            d.text_styles.push(cadz_doc::TextStyle { name: n, ..t.clone() });
         }
     }
     for t in &x.dim_styles {
@@ -305,7 +305,7 @@ fn import(d: &mut Drawing, key: &str, x: &Drawing, cx: &mut Ctx) -> Result<(), S
             && d.dim_style(&n).is_none()
         {
             let text_style = dep(Sym::Style, &t.text_style).unwrap_or_else(|| t.text_style.clone());
-            d.dim_styles.push(cadcraft_doc::DimStyle { name: n, text_style, ..t.clone() });
+            d.dim_styles.push(cadz_doc::DimStyle { name: n, text_style, ..t.clone() });
         }
     }
     for t in &x.mleader_styles {
@@ -313,14 +313,14 @@ fn import(d: &mut Drawing, key: &str, x: &Drawing, cx: &mut Ctx) -> Result<(), S
             && !d.mleader_styles.iter().any(|o| o.name.eq_ignore_ascii_case(&n))
         {
             let text_style = dep(Sym::Style, &t.text_style).unwrap_or_else(|| t.text_style.clone());
-            d.mleader_styles.push(cadcraft_doc::MLeaderStyle { name: n, text_style, ..t.clone() });
+            d.mleader_styles.push(cadz_doc::MLeaderStyle { name: n, text_style, ..t.clone() });
         }
     }
     for t in &x.table_styles {
         if let Some(n) = dep(Sym::TableStyle, &t.name)
             && !d.table_styles.iter().any(|o| o.name.eq_ignore_ascii_case(&n))
         {
-            d.table_styles.push(cadcraft_doc::TableStyle { name: n, ..t.clone() });
+            d.table_styles.push(cadz_doc::TableStyle { name: n, ..t.clone() });
         }
     }
     let adopt = |d: &mut Drawing, e: &Entity| {
@@ -337,7 +337,7 @@ fn import(d: &mut Drawing, key: &str, x: &Drawing, cx: &mut Ctx) -> Result<(), S
         if up.starts_with("*MODEL_SPACE") || up.starts_with("*PAPER_SPACE") {
             continue;
         }
-        let mut nb = cadcraft_doc::Block::new(&format!("{key}|{name}"));
+        let mut nb = cadz_doc::Block::new(&format!("{key}|{name}"));
         nb.base = b.base;
         nb.description = b.description.clone();
         nb.anonymous = b.anonymous;
@@ -402,7 +402,7 @@ pub(crate) fn detach(d: &mut Drawing, key: &str) -> usize {
     d.dim_styles.retain(|t| !mine(&t.name));
     d.mleader_styles.retain(|t| !mine(&t.name));
     d.table_styles.retain(|t| !mine(&t.name));
-    let refs = |st: &EntityStore| -> Vec<cadcraft_doc::Handle> {
+    let refs = |st: &EntityStore| -> Vec<cadz_doc::Handle> {
         st.iter().filter(|e| matches!(&e.kind, EntityKind::Insert(i) if i.block.eq_ignore_ascii_case(key))).map(|e| e.handle).collect()
     };
     let mut hs = refs(&d.model);

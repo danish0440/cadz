@@ -2,9 +2,9 @@
 //! array parameters (ASsociative, Levels, polar ROWs); EXPLODE gives plain objects; MOVE and COPY
 //! keep the array.
 
-use cadcraft_engine::Session;
-use cadcraft_engine::doc::{ArrayKind, ArrayParams, Drawing, Entity, EntityKind, Handle};
-use cadcraft_engine::geom::{Mat3, Vec2};
+use cadz_engine::Session;
+use cadz_engine::doc::{ArrayKind, ArrayParams, Drawing, Entity, EntityKind, Handle};
+use cadz_engine::geom::{Mat3, Vec2};
 use serde_json::{Value, json};
 
 fn typed(s: &mut Session, inputs: &[&str]) {

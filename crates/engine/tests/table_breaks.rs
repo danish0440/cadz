@@ -1,10 +1,10 @@
 //! Table breaking (#534): parts with repeated labels, part grips, TABLEDIT in any part; data
 //! links filling a table from a CSV file and DATALINKUPDATE.
 
-use cadcraft_engine::Session;
-use cadcraft_engine::doc::{BreakDirection, EntityKind, Handle, Table};
-use cadcraft_engine::geom::Vec2;
-use cadcraft_engine::render;
+use cadz_engine::Session;
+use cadz_engine::doc::{BreakDirection, EntityKind, Handle, Table};
+use cadz_engine::geom::Vec2;
+use cadz_engine::render;
 use serde_json::json;
 
 fn table(s: &Session, h: &str) -> Table {
@@ -49,7 +49,7 @@ fn breaking_draws_parts_with_repeated_labels() {
     assert_eq!(r5.row, 6);
     assert!(r5.at.x > 7.0 && r5.at.y > -3.0, "r5 starts the second part at x 7: {:?}", r5.at);
     // Extents cover both parts.
-    let b = cadcraft_engine::doc::entity_bounds(s.doc().unwrap(), s.doc().unwrap().entity(Handle::parse_hex(&h).unwrap()).unwrap(), 0);
+    let b = cadz_engine::doc::entity_bounds(s.doc().unwrap(), s.doc().unwrap().entity(Handle::parse_hex(&h).unwrap()).unwrap(), 0);
     assert!((b.max.x - 13.0).abs() < 1e-9 && (b.min.y + 6.0).abs() < 1e-9, "{b:?}");
     // TABLEDIT finds cells in the second part.
     s.execute("tabledit", &json!({ "at": [11.5, -2.5], "text": "five" })).unwrap();
@@ -73,12 +73,12 @@ fn part_grips_move_parts() {
     let grips = k.grips();
     assert_eq!(grips, vec![Vec2::new(0.0, 0.0), Vec2::new(7.0, 0.0)]);
     // Drag the second part's grip; the first part stays.
-    let moved = cadcraft_engine::grips::stretch_grip(&k, 1, Vec2::new(9.0, -2.0)).unwrap();
+    let moved = cadz_engine::grips::stretch_grip(&k, 1, Vec2::new(9.0, -2.0)).unwrap();
     let EntityKind::Table(t) = &moved else { panic!() };
     let parts = t.parts();
     assert_eq!((parts[0].origin, parts[1].origin), (Vec2::new(0.0, 0.0), Vec2::new(9.0, -2.0)));
     // The insertion grip moves everything.
-    let all = cadcraft_engine::grips::stretch_grip(&moved, 0, Vec2::new(1.0, 1.0)).unwrap();
+    let all = cadz_engine::grips::stretch_grip(&moved, 0, Vec2::new(1.0, 1.0)).unwrap();
     let EntityKind::Table(t) = &all else { panic!() };
     assert_eq!(t.parts()[1].origin, Vec2::new(10.0, -1.0));
     // Typed: select the table by a point, then the height.
@@ -91,7 +91,7 @@ fn part_grips_move_parts() {
 
 #[test]
 fn data_links_fill_and_update() {
-    let dir = std::env::temp_dir().join(format!("cadcraft-datalink-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("cadz-datalink-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("parts.csv");
     std::fs::write(&path, "Part,Qty,Note\r\nbolt,4,\"M6, zinc\"\nnut,8,\n").unwrap();

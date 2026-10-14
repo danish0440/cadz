@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=CadZ
+GenericName=Computer-Aided Design
+Comment=Draft, dimension and plot 2D drawings; open DXF and DWG files
+Exec=cadz %F
+TryExec=cadz
+Icon=com.pintaz.cadz
+Terminal=false
+StartupNotify=true
+StartupWMClass=com.pintaz.cadz
+Categories=Graphics;Engineering;VectorGraphics;
+MimeType=image/vnd.dxf;image/vnd.dwg;application/x-dxf;application/acad;
+Keywords=cad;drafting;dxf;dwg;drawing;engineering;architecture;mechanical;

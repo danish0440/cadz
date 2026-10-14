@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use cadcraft_doc::{Drawing, EntityKind, EntityStore, Handle};
+use cadz_doc::{Drawing, EntityKind, EntityStore, Handle};
 use serde_json::json;
 
 use super::super::bad;

@@ -2,9 +2,9 @@
 
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use cadcraft_engine::Session;
-use cadcraft_engine::doc::{EntityKind, Handle};
-use cadcraft_engine::geom::{Ellipse, Spline, Vec2};
+use cadz_engine::Session;
+use cadz_engine::doc::{EntityKind, Handle};
+use cadz_engine::geom::{Ellipse, Spline, Vec2};
 use serde_json::{Value, json};
 
 fn h(r: &Value) -> String {
