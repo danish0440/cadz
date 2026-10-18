@@ -16,6 +16,7 @@ cadz-dxf = { workspace = true }
 cadz-constraints = { workspace = true }
 cadz-fonts = { workspace = true }
 cadz-render = { workspace = true }
+craft-docpath = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
