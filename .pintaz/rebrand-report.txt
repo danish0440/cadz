@@ -1,7 +1,7 @@
 rebrand cadcraft -> CadZ
-about credit inserted in: ['crates/ui-egui/src/dialogs.rs (fallback, after line 330)']
+about credit inserted in: ['crates/ui-egui/src/dialogs.rs (fallback, after line 341)']
 launcher patches: []
 lines still naming ArtCraft/getartcraft/discord (non-doc): 3
 apps/cadz/build.rs:18: .set("LegalCopyright", "Copyright (c) 2026 ArtCraft Team and the CADCraft contributors. MIT OR Apache-2.0.")
-crates/ui-egui/src/dialogs.rs:331: // PINTAZ-ABOUT: required credit (Apache-2.0 change notice; ArtCraft brand licence)
-crates/ui-egui/src/dialogs.rs:333: ui.label("Based on CADCraft by Storytold (ArtCraft), Apache-2.0. Changes by PINTAZ TECHNOLOGIES.");
+crates/ui-egui/src/dialogs.rs:342: // PINTAZ-ABOUT: required credit (Apache-2.0 change notice; ArtCraft brand licence)
+crates/ui-egui/src/dialogs.rs:344: ui.label("Based on CADCraft by Storytold (ArtCraft), Apache-2.0. Changes by PINTAZ TECHNOLOGIES.");
