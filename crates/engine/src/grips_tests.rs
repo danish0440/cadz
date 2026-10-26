@@ -2,7 +2,7 @@ use cadz_doc::{EntityKind, Handle};
 use cadz_geom::{Arc, Vec2};
 use serde_json::{Value, json};
 
-use super::*;
+use super::{GripMode, stretch_grip};
 use crate::Session;
 
 fn h(r: &Value) -> Handle {
