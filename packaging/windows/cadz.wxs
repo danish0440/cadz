@@ -14,6 +14,9 @@
   unless DESKTOPSHORTCUT=1 or DESKTOPSHORTCUT=0 is given.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <?ifndef HasCraftFontLicences ?>
+  <?define HasCraftFontLicences=0 ?>
+  <?endif ?>
   <Package
       Name="CadZ"
       Manufacturer="Learning Machines LLC"
@@ -59,11 +62,19 @@
     <UIRef Id="CadzUI" />
 
     <Feature Id="Main" Title="CadZ" Level="1">
+      <?if $(var.HasCraftFontLicences) = 1 ?>
+      <ComponentGroupRef Id="CraftFontLicences" />
+      <?endif ?>
       <ComponentGroupRef Id="CadzFiles" />
     </Feature>
   </Package>
 
   <Fragment>
+    <?if $(var.HasCraftFontLicences) = 1 ?>
+    <ComponentGroup Id="CraftFontLicences" Directory="INSTALLFOLDER">
+      <Files Include="$(var.DocsDir)\**" />
+    </ComponentGroup>
+    <?endif ?>
     <ComponentGroup Id="CadzFiles" Directory="INSTALLFOLDER">
       <Component Id="CadzApp" Guid="28E3E11B-B739-5275-979A-1DF166BC4A44">
         <File Id="CadzExe" Source="$(var.BinDir)\cadz.exe" KeyPath="yes">
