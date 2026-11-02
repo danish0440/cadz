@@ -32,7 +32,8 @@ settings directory:
 | macOS | `~/Library/Application Support/CadZ/plotters` |
 | Windows | `%APPDATA%\CadZ\plotters` |
 
-`CADZ_CONFIG_DIR` replaces the settings directory. On the web, devices last for the
+`CADZ_CONFIG_DIR` replaces the settings directory; empty means none (`cadz-cli`:
+`--config-dir`, which falls back to the same variable). On the web, devices last for the
 session unless the host provides storage (`cmd::plotters::set_plotter_store`). Binary `.pc3`
 files are not read; we haven't found a public specification of that format.
 
