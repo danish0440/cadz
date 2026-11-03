@@ -1,0 +1,56 @@
+{
+  "id": "cadz",
+  "name": "CadZ",
+  "upgradeCode": "119D7D76-0167-4A9E-8F37-09DA0235F68E",
+  "sources": [
+    "cadz.wxs"
+  ],
+  "icon": "assets/app-icon/cadz.ico",
+  "localization": [],
+  "extensions": [
+    "UI"
+  ],
+  "payloads": [
+    "cadz-cli.exe",
+    "cadz.exe"
+  ],
+  "registry": [
+    [
+      "-1",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\cadz.exe",
+      "",
+      "[#CadzExe]"
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\cadz.exe\\shell\\open\\command",
+      "",
+      "\"[#CadzExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.dxf\\OpenWithProgids",
+      "CadZ.Drawing",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.dwg\\OpenWithProgids",
+      "CadZ.Drawing",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\CadZ.Drawing\\shell\\open\\command",
+      "",
+      "\"[#CadzExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Learning Machines LLC\\CadZ",
+      "DesktopShortcut",
+      "1"
+    ]
+  ],
+  "mode": "dualScope"
+}

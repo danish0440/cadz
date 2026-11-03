@@ -208,13 +208,50 @@ pub(crate) fn find(path: &str, host: Option<&Path>, chosen: bool) -> Result<Path
     }
     let (files, refused) = candidates(path, host, chosen);
     #[cfg(not(target_arch = "wasm32"))]
-    let found = files.into_iter().find(|p| p.is_file());
+    let found = files.iter().find(|p| p.is_file()).cloned().or_else(|| files.iter().find_map(|p| case_insensitive(p)));
     #[cfg(target_arch = "wasm32")]
     let found: Option<PathBuf> = {
         let _ = files;
         None
     };
     found.ok_or(refused.map_or(Missing::NotFound, Missing::Refused))
+}
+
+/// Upper bound on directory entries scanned per path component by [`case_insensitive`].
+#[cfg(not(target_arch = "wasm32"))]
+const MAX_CASE_SCAN: usize = 10_000;
+
+/// The existing file `p` names when its letters' case is ignored, on file systems that don't
+/// ignore it themselves. Drawings made on Windows often store a reference as `PLAN.DWG` for
+/// `Plan.dwg`; Windows finds it, and so should Linux. Each missing component is matched against
+/// its folder's entries; an exact match always wins, and an ambiguous one finds nothing.
+#[cfg(not(target_arch = "wasm32"))]
+fn case_insensitive(p: &Path) -> Option<PathBuf> {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for c in p.components() {
+        let Component::Normal(name) = c else {
+            out.push(c.as_os_str());
+            continue;
+        };
+        let exact = out.join(name);
+        if exact.exists() {
+            out = exact;
+            continue;
+        }
+        let want = name.to_str()?.to_lowercase();
+        let mut hits = std::fs::read_dir(if out.as_os_str().is_empty() { Path::new(".") } else { &out })
+            .ok()?
+            .take(MAX_CASE_SCAN)
+            .flatten()
+            .filter(|e| e.file_name().to_str().is_some_and(|n| n.to_lowercase() == want));
+        let hit = hits.next()?;
+        if hits.next().is_some() {
+            return None;
+        }
+        out.push(hit.file_name());
+    }
+    out.is_file().then_some(out)
 }
 
 /// Read a drawing file through the host's io hooks, counting its bytes against the load's total.
@@ -420,6 +457,17 @@ fn import(d: &mut Drawing, key: &str, x: &Drawing, cx: &mut Ctx) -> Result<(), S
         nb.anonymous = b.anonymous;
         nb.explodable = b.explodable;
         nb.units = b.units;
+        // Array parameters keep their kind and spacing; block names follow the block renaming, and
+        // a source edit in progress in the referenced file is not carried over.
+        nb.array = b.array.as_ref().map(|a| {
+            let mut a = a.clone();
+            a.source = dep(Sym::Block, &a.source).unwrap_or(a.source);
+            for r in &mut a.replaced {
+                r.block = dep(Sym::Block, &r.block).unwrap_or_else(|| r.block.clone());
+            }
+            a.editing = None;
+            a
+        });
         for e in b.entities.iter() {
             let e = adopt(d, e);
             nb.entities.push(e);
@@ -531,5 +579,36 @@ mod tests {
         assert!(has_prefix("SITE|Walls", "site|"));
         assert!(!has_prefix("SITE", "site|"));
         assert!(!has_prefix("é", "ab"));
+    }
+
+    #[test]
+    fn imported_array_blocks_keep_their_parameters() {
+        use cadz_doc::{ArrayKind, ArrayParams, Block, RectArray, ReplacedItem};
+        let rect = RectArray { cols: 3, rows: 2, col_spacing: 5.0, row_spacing: 4.0, axis_angle: 0.0, row_elevation: 0.0 };
+        let params = ArrayParams {
+            source: "*U1".into(),
+            kind: ArrayKind::Rect(rect),
+            levels: 1,
+            level_spacing: 0.0,
+            replaced: vec![ReplacedItem { i: 1, j: 0, level: 0, block: "ALT".into() }],
+            editing: Some(Default::default()),
+        };
+        let mut arr = Block::new("*U2");
+        arr.array = Some(params);
+        let mut x = Drawing::default();
+        x.blocks.insert("*U2".into(), Arc::new(arr));
+
+        let mut d = Drawing::default();
+        d.blocks.insert("SITE".into(), Arc::new(Block::new("SITE")));
+        let mut cx = Ctx { chain: Vec::new(), objects: 0, files: 0, bytes: 0, notes: Vec::new() };
+        assert!(import(&mut d, "SITE", &x, &mut cx).is_ok());
+
+        let got = d.blocks.get("SITE|*U2").and_then(|b| b.array.clone());
+        let Some(got) = got else { panic!("array parameters were dropped") };
+        assert_eq!(got.source, "SITE|*U1");
+        assert_eq!(got.replaced[0].block, "SITE|ALT");
+        assert!(got.editing.is_none());
+        let ArrayKind::Rect(r) = got.kind else { panic!("not a rectangular array") };
+        assert_eq!((r.cols, r.rows), (3, 2));
     }
 }
