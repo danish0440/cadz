@@ -9,7 +9,7 @@
 
 use cadz_color::Color;
 use cadz_doc::{CellBorder, CellStyle, DataLink, Lineweight, MAX_CELL_STYLES, MAX_TABLE_PARTS, Table, TableBreak, TableStyle};
-use cadz_dxf::Tag;
+use craft_dxf::Tag;
 use serde::{Deserialize, Serialize};
 
 use crate::dxf_ext::{APP, xdata};
