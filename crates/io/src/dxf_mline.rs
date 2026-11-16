@@ -12,8 +12,8 @@ use cadz_doc::{
     Drawing, Entity, EntityKind, EntityStore, MAX_MLINE_CUTS, MAX_MLINE_ELEMENTS, MAX_MLINE_VERTICES, MLine, MLineCaps, MLineCut, MLineElement,
     MLineJust, MLineStyle, MLineVertex, STANDARD_MLINE_STYLE,
 };
-use cadz_dxf::{Section, Tag};
 use cadz_geom::{Vec2, Vec3};
+use craft_dxf::{Section, Tag};
 
 /// Most groups 41 kept per element and vertex (start, then break pairs).
 const MAX_PARAMS: usize = 2 * MAX_MLINE_CUTS + 2;
