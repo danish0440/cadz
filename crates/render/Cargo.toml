@@ -12,6 +12,7 @@ workspace = true
 cadz-geom = { workspace = true }
 cadz-color = { workspace = true }
 cadz-doc = { workspace = true }
+craft-image-codecs = { workspace = true }
 cadz-fonts = { workspace = true }
 tiny-skia = { workspace = true }
 lyon_tessellation = { workspace = true }
