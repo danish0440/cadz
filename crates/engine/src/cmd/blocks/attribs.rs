@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use cadz_doc::{Attrib, Block, Entity, EntityKind, Handle, Insert};
+use cadz_doc::{Attrib, Block, Entity, EntityKind, Handle, Insert, TagKey};
 use serde_json::{Value, json};
 
 use crate::cmd::curves::KW;
@@ -16,6 +16,22 @@ pub(super) fn attdisp_spec() -> CommandSpec {
     CommandSpec::new("attdisp", "Attribute Display", run_attdisp)
         .params("{mode: \"normal\" | \"on\" | \"off\"} (sets ATTMODE to 1 / 2 / 0) → {attmode}")
         .interactive(|_| Ok(Box::new(AttdispM)))
+        .transparent()
+}
+
+/// Returns the View > Attribute Display > Normal, On and Off commands, which set ATTMODE as the matching ATTDISP option does.
+pub(super) fn attdisp_menu_specs() -> Vec<CommandSpec> {
+    vec![
+        CommandSpec::new("attdisp.normal", "Normal", |s, _| set_attmode(s, 1))
+            .menu(&["View", "Attribute Display", "Normal"])
+            .params("{} (ATTDISP Normal: ATTMODE 1) → {attmode}"),
+        CommandSpec::new("attdisp.on", "On", |s, _| set_attmode(s, 2))
+            .menu(&["View", "Attribute Display", "On"])
+            .params("{} (ATTDISP ON: ATTMODE 2) → {attmode}"),
+        CommandSpec::new("attdisp.off", "Off", |s, _| set_attmode(s, 0))
+            .menu(&["View", "Attribute Display", "Off"])
+            .params("{} (ATTDISP OFF: ATTMODE 0) → {attmode}"),
+    ]
 }
 
 pub(super) fn attsync_spec() -> CommandSpec {
@@ -84,19 +100,16 @@ impl Interactive for AttdispM {
 /// The attributes `ins` gets from the definitions `defs` of its block `blk`: placed, styled and
 /// shown as defined, keeping the values of attributes whose tag (any case) is still defined.
 /// Properties set on single attributes (layer, colour, …) go back to the definitions', as in AutoCAD.
-fn synced(blk: &Block, defs: &[&Attrib], ins: &Insert) -> Vec<Attrib> {
+pub(super) fn synced(blk: &Block, defs: &[&Attrib], ins: &Insert) -> Vec<Attrib> {
     let m = ins.transform(blk.base.xy());
+    // The reference's attributes by tag, gathered once for all the definitions (#1923).
+    let carried = ins.attribs_by_tag();
     defs.iter()
         .map(|ad| {
             let mut k = EntityKind::Text(ad.text.clone());
             k.transform(&m);
             let mut t = if let EntityKind::Text(t) = k { t } else { ad.text.clone() };
-            t.value = ins
-                .attribs
-                .iter()
-                .find(|a| a.tag.eq_ignore_ascii_case(&ad.tag))
-                .map(|a| a.text.value.clone())
-                .unwrap_or_else(|| ad.text.value.clone());
+            t.value = carried.get(&TagKey(&ad.tag)).map_or_else(|| ad.text.value.clone(), |a| a.text.value.clone());
             Attrib {
                 tag: ad.tag.clone(),
                 text: t,
@@ -119,12 +132,16 @@ fn references<'a>(ents: impl Iterator<Item = &'a Arc<Entity>>, name: &str) -> Ve
 /// Apply `f` to every reference of block `name` (in model space, layouts and other blocks);
 /// returns how many references there were.
 fn update_references(d: &mut cadz_doc::Drawing, name: &str, mut f: impl FnMut(&mut Insert)) -> usize {
-    let mut n = 0;
-    let mut update = |e: &mut Entity| {
+    update_reference_entities(d, name, |e| {
         if let EntityKind::Insert(ins) = &mut e.kind {
             f(ins);
         }
-    };
+    })
+}
+
+/// [`update_references`], with `f` given the whole object.
+pub(super) fn update_reference_entities(d: &mut cadz_doc::Drawing, name: &str, mut update: impl FnMut(&mut Entity)) -> usize {
+    let mut n = 0;
     let spaces: Vec<cadz_doc::Space> =
         std::iter::once(cadz_doc::Space::Model).chain(d.layouts.iter().map(|l| cadz_doc::Space::Paper(l.name.clone()))).collect();
     for sp in spaces {
@@ -169,18 +186,22 @@ pub(super) fn rename_tag(s: &mut Session, name: &str, old: &str, new: &str) -> R
     }))
 }
 
-/// Synchronize every reference of block `name` (in model space, layouts and other blocks).
-/// Returns the block's name as defined and how many references were updated.
-pub(super) fn sync(s: &mut Session, name: &str) -> Result<(String, usize)> {
-    let blk = s.doc()?.block(name).cloned().ok_or_else(|| EngineError::Other(format!("Block \"{name}\" not found.")))?;
-    let defs: Vec<&Attrib> = blk
-        .entities
+/// The attribute definitions of `blk` that references carry (constant ones are not).
+pub(super) fn attdefs(blk: &Block) -> Vec<&Attrib> {
+    blk.entities
         .iter()
         .filter_map(|e| match &e.kind {
             EntityKind::AttDef(a) if !a.constant => Some(a),
             _ => None,
         })
-        .collect();
+        .collect()
+}
+
+/// Synchronize every reference of block `name` (in model space, layouts and other blocks).
+/// Returns the block's name as defined and how many references were updated.
+pub(super) fn sync(s: &mut Session, name: &str) -> Result<(String, usize)> {
+    let blk = s.doc()?.block(name).cloned().ok_or_else(|| EngineError::Other(format!("Block \"{name}\" not found.")))?;
+    let defs = attdefs(&blk);
     let d = s.doc_mut()?;
     let n = update_references(d, &blk.name, |ins| ins.attribs = synced(&blk, &defs, ins));
     Ok((blk.name.clone(), n))
