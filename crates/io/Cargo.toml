@@ -1,6 +1,6 @@
 [package]
 name = "cadz-io"
-description = "CadZ file formats: DXF read/write mapping, SVG, PNG and PDF export"
+description = "CadZ file formats: DXF/DWG, SVG and PDF import, SVG/PNG/PDF export"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,17 +12,28 @@ workspace = true
 cadz-geom = { workspace = true }
 cadz-color = { workspace = true }
 cadz-doc = { workspace = true }
-cadz-dxf = { workspace = true }
-cadz-dwg = { workspace = true }
+craft-dxf = { workspace = true }
+craft-dwg = { workspace = true }
+craft-svg = { workspace = true }
+craft-image-codecs = { workspace = true }
 cadz-render = { workspace = true }
 cadz-fonts = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
-miniz_oxide = "0.8"
-quick-xml = { workspace = true }
+craft-pdf = { workspace = true, features = ["write", "interpret"] }
+kurbo = { workspace = true }
+lyon_tessellation = { workspace = true }
 
 [dev-dependencies]
-# Reads CadZ's DWG output as written (tests only; the same version as cadz-dwg's).
-acadrust = "0.6.4"
+miniz_oxide = "0.9"
+tiff = "0.11"
+image = { workspace = true }
 tiny-skia = { workspace = true }
+# Reads plotted PDFs back.
+craft-pdf = { workspace = true, features = ["read"] }
+
+# Inspect DWG output only where craft-dwg builds its native bridge. An unconditional
+# dev-dependency also builds acadrust during --all-targets, breaking FreeBSD aarch64 (#2526).
+[target.'cfg(not(any(target_arch = "wasm32", all(target_os = "freebsd", target_arch = "aarch64"))))'.dev-dependencies]
+acadrust = "0.6.6"
