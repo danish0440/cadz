@@ -1,5 +1,6 @@
 //! Window chrome: title and tool bar, file tabs, status bar and the Start page.
 
+use craft_behavior::fit::{FitItem, FitKeep};
 use egui::{Rect, Sense, Stroke, pos2, vec2};
 use serde_json::json;
 
@@ -40,26 +41,11 @@ const TOOLBAR: &[&[(Icon, &str, &str, Option<&str>)]] = &[
     &[(Icon::Help, "ui.dialog.about", "Help", None)],
 ];
 
-/// Height of the macOS integrated title row (#161). AppKit draws the traffic lights itself,
-/// centred in the standard 28 pt title-bar band at the top of the window; moving them would take
-/// AppKit calls (`unsafe`, which the workspace forbids). So the title row is that band, and what
-/// it holds is centred on the same line as the lights.
+/// Height of the macOS integrated title row (#161): the standard 28 pt title-bar band AppKit centres the traffic
+/// lights in.
 const MAC_TITLE_BAR: f32 = 28.0;
-/// The traffic lights as AppKit lays them out: button diameter, centre-to-centre pitch and the
-/// first button's left edge (8–10 pt depending on the macOS version; the larger value keeps the
-/// gap after them from shrinking).
-const MAC_LIGHT: f32 = 12.0;
-const MAC_LIGHT_PITCH: f32 = 20.0;
-const MAC_LIGHTS_LEFT: f32 = 10.0;
-/// Where title-row content may start to the right of the traffic lights: the end of the three
-/// lights plus the same gap the lights keep from the top of the window.
-const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
-
-/// Left edge of the window title in a title row starting at `left`, `width` wide: centred, but
-/// never under the traffic lights (a long drawing name in a narrow window slides right instead).
-fn title_left(left: f32, width: f32, text_w: f32) -> f32 {
-    (left + (width - text_w) / 2.0).max(left + MAC_CONTENT_LEFT)
-}
+/// The width of the toolbar's More button.
+const MORE_WIDTH: f32 = 30.0;
 
 /// Title row (with the integrated macOS title bar) and the Tool Bar.
 pub fn title_and_toolbar(app: &mut CadApp, ui: &mut egui::Ui) {
@@ -69,25 +55,18 @@ pub fn title_and_toolbar(app: &mut CadApp, ui: &mut egui::Ui) {
     egui::Panel::top("cc_title_toolbar").exact_size(title_h + tb_h).frame(egui::Frame::NONE.fill(t.chrome)).show(ui, |ui| {
         let r = ui.max_rect();
         if title_h > 0.0 {
+            // The window's title bar: its free area moves the window and follows the system's double-click setting.
             let title = match app.session.state() {
                 Ok(st) if !app.ui.start_tab => format!("CadZ      {}{}", st.title, if st.title.contains('.') { "" } else { ".dwg" }),
                 _ => format!("CadZ      {}", crate::tl!("Start")),
             };
-            // Centred on the traffic lights' centre line (the row's middle): with the system font
-            // the capitals' middle is the text box's middle, so no optical nudge.
-            let galley = ui.painter().layout_no_wrap(title, egui::FontId::proportional(13.0), t.text_dim);
-            let x = title_left(r.left(), r.width(), galley.size().x);
-            ui.painter().galley(pos2(x, r.top() + (title_h - galley.size().y) / 2.0), galley, t.text_dim);
-            // Allow dragging the window by the title row.
-            let tr = Rect::from_min_size(r.min, vec2(r.width(), title_h));
-            let resp = ui.interact(tr, ui.id().with("titledrag"), Sense::CLICK | Sense::DRAG);
-            if resp.drag_started() {
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-            }
-            if resp.double_clicked() {
-                let max = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
-            }
+            let row = Rect::from_min_size(r.min, vec2(r.width(), title_h));
+            ui.scope_builder(egui::UiBuilder::new().max_rect(row), |ui| {
+                let bar = craft_ui::shell::TitleBar::new().show_titled(ui, craft_ui::shell::Title::new(title), |_, _| {}, |_, _| {});
+                if bar.close_requested {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            });
         }
         if tb_h > 0.0 {
             let row = Rect::from_min_size(pos2(r.left(), r.top() + title_h), vec2(r.width(), tb_h));
@@ -97,7 +76,9 @@ pub fn title_and_toolbar(app: &mut CadApp, ui: &mut egui::Ui) {
             let mac = ui.ctx().os().is_mac();
             let widths: Vec<_> = TOOLBAR.iter().map(|group| group.len() as f32 * (size + 6.0) - 6.0).collect();
             let available = (row.right() - 12.0 - x).max(0.0);
-            let Some(fit) = craft_ui::layout::fit_toolbar(&widths, available, 24.0, 30.0) else {
+            let items: Vec<_> = widths.iter().enumerate().map(|(i, w)| FitItem::new(*w, i as u16, FitKeep::Free)).collect();
+            let fit = craft_behavior::fit::fit_items(&items, available, 24.0, 24.0, MORE_WIDTH);
+            if !fit.overflow.is_empty() && available < MORE_WIDTH {
                 // Very small windows still expose the complete command row by scrolling.
                 ui.scope_builder(egui::UiBuilder::new().max_rect(row.shrink2(vec2(4.0, 0.0))), |ui| {
                     egui::ScrollArea::horizontal().id_salt("toolbar_small").show(ui, |ui| {
@@ -117,12 +98,12 @@ pub fn title_and_toolbar(app: &mut CadApp, ui: &mut egui::Ui) {
                     app.start(command);
                 }
                 return;
-            };
-            for (index, _) in &fit.shown {
+            }
+            for index in &fit.shown {
                 let Some(group) = TOOLBAR.get(*index) else { continue };
                 for (icon, cmd, label, shortcut) in group.iter() {
                     let br = Rect::from_min_size(pos2(x, row.center().y - size / 2.0), vec2(size, size));
-                    let resp = ui.interact(br, ui.id().with(("tb", *cmd)), Sense::click());
+                    let resp = ui.interact(br, ui.scope_id().with(("tb", *cmd)), Sense::click());
                     if resp.hovered() {
                         ui.painter().rect_filled(br, 3.0, t.control_hover.gamma_multiply(0.6));
                     }
@@ -140,8 +121,8 @@ pub fn title_and_toolbar(app: &mut CadApp, ui: &mut egui::Ui) {
                 x += 18.0;
             }
             if !fit.overflow.is_empty() {
-                let br = Rect::from_min_size(pos2(x, row.center().y - size / 2.0), vec2(fit.overflow_width, size));
-                let response = ui.interact(br, ui.id().with("toolbar_more"), Sense::click());
+                let br = Rect::from_min_size(pos2(x, row.center().y - size / 2.0), vec2(MORE_WIDTH, size));
+                let response = ui.interact(br, ui.scope_id().with("toolbar_more"), Sense::click());
                 if response.hovered() {
                     ui.painter().rect_filled(br, 3.0, t.control_hover.gamma_multiply(0.6));
                 }
@@ -184,7 +165,7 @@ pub fn file_tabs(app: &mut CadApp, ui: &mut egui::Ui) {
         icons::paint(ui.painter(), ib.shrink(1.0), Icon::Switcher, false);
         x += 24.0;
         let plus = Rect::from_min_size(pos2(x, r.top() + 4.0), vec2(18.0, 18.0));
-        let presp = ui.interact(plus, ui.id().with("tab+"), Sense::click());
+        let presp = ui.interact(plus, ui.scope_id().with("tab+"), Sense::click());
         icons::paint(ui.painter(), plus.shrink(2.0), Icon::Plus, false);
         icons::describe_control(ui, &presp, "New Drawing", None, false);
         if presp.on_hover_text(crate::tl!("New Drawing")).clicked() {
@@ -198,12 +179,15 @@ pub fn file_tabs(app: &mut CadApp, ui: &mut egui::Ui) {
             |ui: &mut egui::Ui, label: &str, dirty: bool, active: bool, closable: bool, w: f32, id: egui::Id| -> (bool, bool, egui::Response) {
                 let tr = Rect::from_min_size(pos2(x, r.top()), vec2(w, r.height()));
                 let resp = ui.interact(tr, id, Sense::click());
+                // The close button takes the tab's hover, so `resp.hovered()` would make the tab and
+                // its X flicker while the pointer is on the X.
+                let hovered = ui.rect_contains_pointer(tr);
                 ui.painter().rect_filled(
                     tr,
                     0.0,
                     if active {
                         t.tab_active
-                    } else if resp.hovered() {
+                    } else if hovered {
                         t.chrome
                     } else {
                         t.chrome_dark
@@ -223,7 +207,7 @@ pub fn file_tabs(app: &mut CadApp, ui: &mut egui::Ui) {
                 }
                 let resp = if cut { resp.on_hover_text(format!("{label}{mark}")) } else { resp };
                 let mut close = false;
-                if closable && (active || resp.hovered()) {
+                if closable && (active || hovered) {
                     let cr = Rect::from_center_size(pos2(tr.right() - 11.0, tr.center().y), vec2(12.0, 12.0));
                     let cresp = ui.interact(cr, id.with("x"), Sense::click());
                     icons::paint(ui.painter(), cr, Icon::Close, false);
@@ -235,7 +219,8 @@ pub fn file_tabs(app: &mut CadApp, ui: &mut egui::Ui) {
                 x += w;
                 (resp.clicked(), close, resp)
             };
-        let (c, _, _) = tab(ui, crate::tl!("Start"), false, app.ui.start_tab || app.session.docs.is_empty(), false, 110.0, ui.id().with("tab_start"));
+        let (c, _, _) =
+            tab(ui, crate::tl!("Start"), false, app.ui.start_tab || app.session.docs.is_empty(), false, 110.0, ui.scope_id().with("tab_start"));
         if c {
             app.ui.start_tab = true;
         }
@@ -244,7 +229,7 @@ pub fn file_tabs(app: &mut CadApp, ui: &mut egui::Ui) {
         let titles: Vec<(usize, String, bool, bool)> =
             app.session.docs.iter().enumerate().map(|(i, d)| (i, d.title.clone(), d.is_dirty(), i == app.session.active)).collect();
         for (i, title, dirty, active) in titles {
-            let (c, x, resp) = tab(ui, &title, dirty, active && !app.ui.start_tab, true, 170.0, ui.id().with(("tab", i)));
+            let (c, x, resp) = tab(ui, &title, dirty, active && !app.ui.start_tab, true, 170.0, ui.scope_id().with(("tab", i)));
             crate::shortcut_menus::attach(app, &resp, |app| crate::shortcut_menus::drawing_tab_entries(app, i));
             if c {
                 switch_to = Some(i);
@@ -294,7 +279,45 @@ fn visible_tabs(widths: &[f32], active: Option<usize>, room: f32) -> std::ops::R
     start..active + 1
 }
 
-/// Status bar: layout tabs on the left, coordinates and drafting toggles on the right.
+fn draw_status_toggles(
+    app: &mut CadApp,
+    ui: &mut egui::Ui,
+    painter: &egui::Painter,
+    t: Tokens,
+    toggles: &[(Icon, bool, &str, &str)],
+    layout: (Rect, f32, f32),
+) {
+    let (rect, mut rx, size) = layout;
+    let mut toggle_cmd = None;
+    for &(icon, on, cmd, tip) in toggles {
+        let br = Rect::from_min_size(pos2(rx, rect.center().y - size / 2.0), vec2(size, size));
+        let resp = ui.interact(br, ui.scope_id().with(("tg", tip)), Sense::click());
+        if on {
+            painter.rect_filled(br, 3.0, t.toggle_on.gamma_multiply(0.35));
+        } else if resp.hovered() {
+            painter.rect_filled(br, 3.0, t.control_hover.gamma_multiply(0.5));
+        }
+        icons::paint(painter, br.shrink(2.5), icon, false);
+        if on {
+            // Re-tint the icon blue-ish by an underline.
+            painter.hline(br.x_range().shrink(4.0), br.bottom() - 1.0, Stroke::new(1.5, t.toggle_on));
+        }
+        icons::describe_control(ui, &resp, tip, Some(on), false);
+        if resp.on_hover_text(crate::i18n::t(tip)).clicked() {
+            toggle_cmd = Some(cmd);
+        }
+        rx += size + 4.0;
+    }
+    // The toggles don't cancel the active command (#1108); the dialog buttons start theirs.
+    match toggle_cmd {
+        Some(c) if c.starts_with("ui.") => app.start(c),
+        Some(c) => crate::menus::run_transparent(app, c),
+        None => {}
+    }
+}
+
+/// Status bar: layout tabs follow the left-hand layout actions, independent of palette docking.
+/// Coordinates and drafting toggles remain on the right.
 pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     let t = Tokens::get();
     egui::Panel::bottom("cc_status").exact_size(26.0).frame(egui::Frame::NONE.fill(t.chrome)).show(ui, |ui| {
@@ -311,7 +334,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
         let mut list_button = None;
         for (icon, tip) in [(Icon::Plus, "New layout"), (Icon::Menu, "Layout list")] {
             let br = Rect::from_min_size(pos2(x, r.top() + 4.0), vec2(18.0, 18.0));
-            let resp = ui.interact(br, ui.id().with(("sb", tip)), Sense::click());
+            let resp = ui.interact(br, ui.scope_id().with(("sb", tip)), Sense::click());
             icons::paint(&p, br.shrink(2.0), icon, false);
             icons::describe_control(ui, &resp, tip, None, false);
             let resp = resp.on_hover_text(crate::i18n::t(tip));
@@ -324,7 +347,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
             }
             x += 22.0;
         }
-        x = x.max(r.left() + if app.ui.show_toolsets { 232.0 } else { 60.0 });
+        x += 8.0;
         // Right side: toggles, right-aligned.
         let s = app.session.settings.clone();
         let anno_all = app.session.doc().is_ok_and(|d| d.anno_all_visible());
@@ -346,9 +369,10 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
             (Icon::Gear, false, "ui.dialog.dsettings", "Drafting Settings"),
         ];
         let size = 20.0;
-        let mut rx = r.right() - 8.0 - toggles.len() as f32 * (size + 4.0);
-        // Coordinates.
+        let rx = r.right() - 8.0 - toggles.len() as f32 * (size + 4.0);
+        // Coordinates, in the current UCS.
         let coord = app.canvas.cursor.map(|c| {
+            let c = app.session.ucs_point(c);
             let (lu, lp) = app.session.doc().map(|d| (d.header.i64("LUNITS", 2), d.header.i64("LUPREC", 4))).unwrap_or((2, 4));
             format!(
                 "{}, {}, {}",
@@ -365,7 +389,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
             let model = app.session.state().is_ok_and(|st| st.mspace.is_some());
             let label = if model { "MODEL" } else { "PAPER" };
             let br = Rect::from_min_max(pos2(rx - 60.0, r.center().y - 9.0), pos2(rx - 6.0, r.center().y + 9.0));
-            let resp = ui.interact(br, ui.id().with("mspace_toggle"), Sense::click());
+            let resp = ui.interact(br, ui.scope_id().with("mspace_toggle"), Sense::click());
             p.rect_filled(br, 3.0, if resp.hovered() { t.control_hover } else { t.toggle_on.gamma_multiply(0.25) });
             p.text(br.center(), egui::Align2::CENTER_CENTER, crate::i18n::t(label), crate::theme::small(), t.text);
             icons::describe_control(ui, &resp, label, None, false);
@@ -414,7 +438,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
             let w = g.size().x + 26.0;
             let tr = Rect::from_min_size(pos2(x, r.top() + 1.0), vec2(w, r.height() - 2.0)).intersect(clip);
             let active = active_tab == Some(i);
-            let resp = ui.interact(tr, ui.id().with(("lt", i)), Sense::click());
+            let resp = ui.interact(tr, ui.scope_id().with(("lt", i)), Sense::click());
             if active {
                 tp.rect_filled(tr, 2.0, t.tab_active);
             } else if resp.hovered() {
@@ -430,7 +454,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
             x += w + 2.0;
             if i == 0 {
                 let pr = Rect::from_min_size(pos2(x, r.top() + 5.0), vec2(16.0, 16.0));
-                let presp = ui.interact(pr, ui.id().with("layout_plus"), Sense::click());
+                let presp = ui.interact(pr, ui.scope_id().with("layout_plus"), Sense::click());
                 icons::paint(&p, pr.shrink(2.0), Icon::Plus, false);
                 icons::describe_control(ui, &presp, "New layout", None, false);
                 if presp.on_hover_text(crate::tl!("New layout")).clicked()
@@ -445,7 +469,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
         // The layouts that didn't fit, behind a button after the last tab shown.
         let more = hidden.then(|| {
             let mr = Rect::from_min_size(pos2(x + 2.0, r.top() + 5.0), vec2(16.0, 16.0));
-            let resp = ui.interact(mr, ui.id().with("layout_more"), Sense::click());
+            let resp = ui.interact(mr, ui.scope_id().with("layout_more"), Sense::click());
             if resp.hovered() {
                 p.rect_filled(mr, 3.0, t.control_hover.gamma_multiply(0.5));
             }
@@ -486,35 +510,10 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
                 let rect = Rect::from_min_max(pos2(left, r.top()), pos2(coord_right, r.bottom()));
                 let text_x = if message.is_some() { left } else { coord_right - galley.size().x };
                 p.with_clip_rect(rect).galley(pos2(text_x, r.center().y - galley.size().y / 2.0), galley, color);
-                ui.interact(rect, ui.id().with("status_readout"), Sense::hover()).on_hover_text(text);
+                ui.interact(rect, ui.scope_id().with("status_readout"), Sense::hover()).on_hover_text(text);
             }
         }
-        let mut toggle_cmd = None;
-        for (icon, on, cmd, tip) in toggles {
-            let br = Rect::from_min_size(pos2(rx, r.center().y - size / 2.0), vec2(size, size));
-            let resp = ui.interact(br, ui.id().with(("tg", tip)), Sense::click());
-            if on {
-                p.rect_filled(br, 3.0, t.toggle_on.gamma_multiply(0.35));
-            } else if resp.hovered() {
-                p.rect_filled(br, 3.0, t.control_hover.gamma_multiply(0.5));
-            }
-            icons::paint(&p, br.shrink(2.5), icon, false);
-            if on {
-                // Re-tint the icon blue-ish by an underline.
-                p.hline(br.x_range().shrink(4.0), br.bottom() - 1.0, Stroke::new(1.5, t.toggle_on));
-            }
-            icons::describe_control(ui, &resp, tip, Some(on), false);
-            if resp.on_hover_text(crate::i18n::t(tip)).clicked() {
-                toggle_cmd = Some(cmd);
-            }
-            rx += size + 4.0;
-        }
-        // The toggles don't cancel the active command (#1108); the dialog buttons start theirs.
-        match toggle_cmd {
-            Some(c) if c.starts_with("ui.") => app.start(c),
-            Some(c) => crate::menus::run_transparent(app, c),
-            None => {}
-        }
+        draw_status_toggles(app, ui, &p, t, &toggles, (r, rx, size));
     });
 }
 
@@ -526,7 +525,13 @@ pub fn start_page(app: &mut CadApp, ui: &mut egui::Ui) {
     let left = Rect::from_min_size(r.min, vec2(300.0, r.height()));
     p.rect_filled(left, 0.0, t.chrome_dark);
     p.rect_filled(Rect::from_min_max(pos2(left.right(), r.top()), r.max), 0.0, t.chrome);
-    p.text(pos2(left.left() + 34.0, left.top() + 70.0), egui::Align2::LEFT_CENTER, crate::tl!("CadZ"), egui::FontId::proportional(28.0), t.text);
+    p.text(
+        pos2(left.left() + 34.0, left.top() + 70.0),
+        egui::Align2::LEFT_CENTER,
+        crate::os_window::drawn_name(),
+        egui::FontId::proportional(28.0),
+        t.text,
+    );
     p.text(
         pos2(left.left() + 34.0, left.top() + 98.0),
         egui::Align2::LEFT_CENTER,
@@ -538,7 +543,7 @@ pub fn start_page(app: &mut CadApp, ui: &mut egui::Ui) {
     let mut action = None;
     for (label, cmd) in [("Open...", "open"), ("New", "new"), ("New (metric)", "new.metric"), ("Open sample drawing", "sample")] {
         let br = Rect::from_min_size(pos2(left.left() + 34.0, y), vec2(220.0, 34.0));
-        let resp = ui.interact(br, ui.id().with(("start", cmd)), Sense::click());
+        let resp = ui.interact(br, ui.scope_id().with(("start", cmd)), Sense::click());
         p.rect_stroke(br, 2.0, Stroke::new(1.0, if resp.hovered() { t.text } else { t.text_dim }), egui::StrokeKind::Inside);
         p.text(pos2(br.left() + 16.0, br.center().y), egui::Align2::LEFT_CENTER, crate::i18n::t(label), crate::theme::body(), t.text);
         if resp.clicked() {
@@ -552,7 +557,7 @@ pub fn start_page(app: &mut CadApp, ui: &mut egui::Ui) {
     let mut y = main.top() + 44.0;
     for (i, path) in app.ui.recent_files.iter().enumerate() {
         let row = Rect::from_min_size(pos2(main.left(), y), vec2((r.right() - main.left() - 36.0).clamp(0.0, 640.0), 42.0));
-        let resp = ui.interact(row, ui.id().with(("recent", i)), Sense::click());
+        let resp = ui.interact(row, ui.scope_id().with(("recent", i)), Sense::click());
         if resp.hovered() {
             p.rect_filled(row, 2.0, t.control_hover.gamma_multiply(0.5));
         }
@@ -566,7 +571,7 @@ pub fn start_page(app: &mut CadApp, ui: &mut egui::Ui) {
         y += 46.0;
     }
     if let Some(path) = recent {
-        app.open_path(&path);
+        app.open_path(std::path::Path::new(&path));
     } else if app.ui.recent_files.is_empty() {
         p.text(
             pos2(main.center().x, main.center().y),
@@ -603,17 +608,6 @@ pub fn start_page(app: &mut CadApp, ui: &mut egui::Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn mac_title_row_centres_and_clears_the_traffic_lights() {
-        // The lights are centred in the row, and content keeps the same gap after them.
-        let margin = (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
-        let lights_end = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT;
-        assert_eq!(MAC_CONTENT_LEFT - lights_end, margin);
-        // A short title is centred; one too wide for that starts after the lights.
-        assert_eq!(title_left(100.0, 1000.0, 200.0), 500.0);
-        assert_eq!(title_left(100.0, 900.0, 800.0), 100.0 + MAC_CONTENT_LEFT);
-    }
 
     #[test]
     fn layout_tabs_that_do_not_fit_keep_the_current_one() {
